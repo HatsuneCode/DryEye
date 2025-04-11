@@ -1,38 +1,3 @@
-RNAseq.checkDupRow = function(expr, method = 'mean') {
-  ## process symbols
-  gene  = sub('^ENS.*?_', '', rownames(expr))
-  dgene = unique(gene[duplicated(gene)])
-  ## check duplicated symbols
-  if (length(dgene)) {
-    expr1 = expr[!gene %in% dgene,]
-    expr2 = do.call(rbind, lapply(dgene, function(g) {
-      e = expr[gene == g, , drop = F]
-      if (method == 'mean')
-        t(setNames(data.frame(colMeans(e)), g))
-    }))
-    expr = rbind(expr1, expr2)
-    rm(expr1, expr2)
-  }
-  rm(gene, dgene)
-  ## restore symbol
-  rownames(expr) = sub('^ENS.*?_', '', rownames(expr))
-  expr
-}
-
-RNAseq.Normalize = function(expr, log2 = T, method = 'DESeq2') {
-  if (method == 'DESeq2') {
-    suppressMessages(library(DESeq2))
-    dds  = DESeqDataSetFromMatrix(
-      countData = expr,
-      colData = data.frame(row.names = colnames(expr), samples = factor(colnames(expr))),
-      design = ~ samples)
-    dds  = estimateSizeFactors(dds)
-    expr = counts(dds, normalize = T)
-  }
-  if (log2) expr = log2(expr + 1)
-  expr
-}
-
 expr = read.table('/mnt/f/Project/GSE252984.stat/4.expected_count.xls', sep = '\t', header = T, row.names = 1, check.names = F)
 expr = RNAseq.checkDupRow(expr)
 expr = round(expr)
@@ -41,13 +6,6 @@ expr = RNAseq.Normalize(expr)
 write.table(cbind(Gene = rownames(expr), expr), '/mnt/f/Project/GSE252984.stat/Normalized.counts.txt', sep = '\t', row.names = F)
 
 # PCA part
-PCA = function(expr, ...) {
-  pca = data.frame(prcomp(t(expr), ...)$x, check.rows = F)
-  pca$sample = rownames(pca)
-  pca$sample = factor(pca$sample, pca$sample)
-  pca
-}
-
 expr.f = expr[order(apply(expr, 1, mad), decreasing = T)[1:3e3],]
 pca = PCA(expr.f)
 pca$group = sub('.$', '', pca$sample)
@@ -90,56 +48,6 @@ ggsave("/mnt/f/Project/GSE252984.stat/PCA.All.png", width = 9, height = 7, dpi =
 
 
 # 差异分析
-RNAseq.DESeq2 = function(expr, pos = NULL, neg = NULL, name = NULL, exp_cut = 10, cut.method = 'inter') {
-  ## cut.method: inter, union
-  suppressMessages(library(DESeq2))
-  ## expr split
-  exprP = if (length(pos)) expr[, colnames(expr) %in% pos, drop = F] else 
-    expr[, !colnames(expr) %in% neg, drop = F]
-  exprN = if (length(neg)) expr[, colnames(expr) %in% neg, drop = F] else 
-    expr[, !colnames(expr) %in% pos, drop = F]
-  ## expr type
-  type = paste(paste(colnames(exprP), collapse = ','), 'vs', paste(colnames(exprN), collapse = ',') )
-  if (!length(name)) name = type
-  message('DEG: ', type)
-  ## condition control ~ treatment
-  condition = factor( c(rep('Neg', ncol(exprN)), rep('Pos', ncol(exprP))), c('Neg', 'Pos') )
-  ## counts
-  expr  = cbind(exprN, exprP)
-  expr  = expr[rowSums(expr) > 0, , drop = F]
-  ## cut-off
-  if (length(exp_cut)) {
-    gene = lapply(c('Pos', 'Neg'), function(g) {
-      expr.f = expr[, condition == g, drop = F]
-      rownames(expr.f)[apply(expr.f, 1, function(i) !any(i < exp_cut) )]
-    } )
-    if ('inter' %in% cut.method) gene = Reduce(intersect, gene)
-    if ('union' %in% cut.method) gene = Reduce(union, gene)
-    message('--> valid gene number: ',  length(gene), ' <--')
-    expr = expr[gene, , drop = F]
-  }
-  ## split pos/neg
-  exprP = expr[, condition == 'Pos', drop = F]
-  exprN = expr[, condition == 'Neg', drop = F]
-  ## meta
-  meta = data.frame(row.names = colnames(expr), condition)
-  ## DESeq2
-  dds = DESeqDataSetFromMatrix(countData = expr, colData = meta, design = ~ condition)
-  dds = DESeq(dds)
-  dds = data.frame(results(dds), check.names = F)
-  ## output
-  data.frame(p_val = dds$pvalue, avg_log2FC = dds$log2FoldChange, 
-             pct.1 = apply(exprP, 1, function(i) sum(i > 0)/ncol(exprP) ),
-             pct.2 = apply(exprN, 1, function(i) sum(i > 0)/ncol(exprN) ),
-             p_val_adj = dds$padj, gene = rownames(dds), 
-             average = rowMeans(expr),  median = apply(expr,  1, median), 
-             posAvg  = rowMeans(exprP), posMed = apply(exprP, 1, median),
-             negAvg  = rowMeans(exprN), negMed = apply(exprN, 1, median),
-             type    = name, 
-             upDown  = factor(ifelse(dds$log2FoldChange > 0, 'Up', 'Down'), c('Up', 'Down')), 
-             row.names = NULL )
-}
-
 raw = read.table('/mnt/f/Project/GSE252984.stat/Raw.counts.txt', sep = '\t', header = T, check.names = F, row.names = 1)
 pos = c('BAC1', 'BAC2', 'BAC3', 'BAC4')
 neg = c('PBS1', 'PBS2', 'PBS3', 'PBS4')
