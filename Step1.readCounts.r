@@ -34,20 +34,6 @@ write.table(DEG, '/mnt/f/Project/GSE252984.stat/DEG.DvsCtrl.txt', sep = '\t', ro
 # heatmap of genes number
 pref = '/mnt/f/Project/GSE252984.stat/stat.DEG'
 dir.create(pref, F)
-para.DEG = list(
-  ## p .01
-  'FC1.5 Padj.01'  = c(1.5, .01),       'FC1.5 P.01'  = c(1.5, .01), 
-  'FC1 Padj.01'    = c(1, .01),         'FC1 P.01'    = c(1, .01), 
-  'FC0.58 Padj.01' = c(log2(1.5), .01), 'FC0.58 P.01' = c(log2(1.5), .01),
-  'FC0.26 Padj.01' = c(log2(1.2), .01), 'FC0.26 P.01' = c(log2(1.2), .01),
-  'FC0 Padj.01'    = c(0, .01),         'FC0 P.01'    = c(0, .01),
-  ## p .05
-  'FC1.5 Padj.05'  = c(1.5, .05),       'FC1.5 P.05'  = c(1.5, .05),
-  'FC1 Padj.05'    = c(1, .05),         'FC1 P.05'    = c(1, .05), 
-  'FC0.58 Padj.05' = c(log2(1.5), .05), 'FC0.58 P.05' = c(log2(1.5), .05),
-  'FC0.26 Padj.05' = c(log2(1.2), .05), 'FC0.26 P.05' = c(log2(1.2), .05),
-  'FC0 Padj.05'    = c(0, .05),         'FC0 P.05'    = c(0, .05)
-)
 DEG = read.table('/mnt/f/Project/GSE252984.stat/DEG.DvsCtrl.txt', sep = '\t', header = T, check.names = F)
 # 计算 DEG 数量
 DEGsig = do.call(rbind, lapply(seq(para.DEG), function(i) {
@@ -62,10 +48,9 @@ DEGsig = do.call(rbind, lapply(seq(para.DEG), function(i) {
 }))
 
 # 循环绘图：4种组合
-for (adj_val in c(TRUE, FALSE)) {
-  for (pv_val in c(0.05, 0.01)) {
+for (adj_val in c(TRUE, FALSE)) for (pv_val in c(0.05, 0.01)) {
     pd = DEGsig[DEGsig$ADJ == adj_val & DEGsig$PV == pv_val, c('Name', 'Up', 'Down')]
-    if (nrow(pd) == 0) next  # 如果这一组没有数据，就跳过
+    if (!nrow(pd)) next  # 如果这一组没有数据，就跳过
     rownames(pd) = sub(' .*', '', pd$Name)
     pd = t(pd[rev(seq(nrow(pd))), -1])
     pd[2, ] = -pd[2, ]  # Down 设为负数方便绘图显示
@@ -87,5 +72,4 @@ for (adj_val in c(TRUE, FALSE)) {
          column_title = paste0('DEG Heatmap (adj=', adj_val, ', p=', pv_val, ')'),
          column_title_gp = gpar(fontsize = 20, fontface = 'bold'))
     dev.off()
-  }
 }
