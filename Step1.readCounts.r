@@ -1,3 +1,4 @@
+## Step1: read counts ##
 expr = read.table('/mnt/f/Project/GSE252984.stat/4.expected_count.xls', sep = '\t', header = T, row.names = 1, check.names = F)
 expr = RNAseq.checkDupRow(expr)
 expr = round(expr)
@@ -5,24 +6,23 @@ write.table(cbind(Gene = rownames(expr), expr), '/mnt/f/Project/GSE252984.stat/R
 expr = RNAseq.Normalize(expr)
 write.table(cbind(Gene = rownames(expr), expr), '/mnt/f/Project/GSE252984.stat/Normalized.counts.txt', sep = '\t', row.names = F)
 
-# PCA part
-expr.f = expr[order(apply(expr, 1, mad), decreasing = T)[1:3e3],]
+## PCA
+expr.f = expr[order(apply(expr, 1, mad), decreasing = T)[1:3e3], ]
 pca = PCA(expr.f)
 pca$group = sub('.$', '', pca$sample)
 ggplot(pca, aes(PC1, PC2)) +
   geom_point(aes(color = group), size = 4, alpha = 0.8) +
   geom_text_repel(aes(label = sample), size = 4, max.overlaps = 50) +
   labs(title = "PCA of Top3k Variable Genes",
-       x = "PC1", y = "PC2", color = "Group") +
-  scale_color_brewer(palette = "Set1") +
-  theme_classic(base_family = "serif") +
+       x = 'PC1', y = 'PC2', color = 'Group') +
+  scale_color_brewer(palette = 'Set1') +
+  theme_classic() +
   theme(
-    plot.title = element_text(hjust = 0.5, size = 18, face = "bold"),
-    axis.title = element_text(size = 16),
-    axis.text = element_text(size = 14),
+    plot.title = element_text(hjust = 0.5, size = 18, face = 'bold'),
+    axis.title = element_text(size = 16), axis.text = element_text(size = 14),
     legend.text = element_text(size = 14)
   )
-ggsave("/mnt/f/Project/GSE252984.stat/PCA.Top3k.png", width = 9, height = 7, dpi = 300)
+ggsave('/mnt/f/Project/GSE252984.stat/PCA.Top3k.png', width = 9, height = 7, dpi = 300)
 
 # 差异分析
 raw = read.table('/mnt/f/Project/GSE252984.stat/Raw.counts.txt', sep = '\t', header = T, check.names = F, row.names = 1)
@@ -64,27 +64,28 @@ DEGsig = do.call(rbind, lapply(seq(para.DEG), function(i) {
 # 循环绘图：4种组合
 for (adj_val in c(TRUE, FALSE)) {
   for (pv_val in c(0.05, 0.01)) {
-    pd = DEGsig[DEGsig$ADJ == adj_val & DEGsig$PV == pv_val, c("Name", "Up", "Down")]
+    pd = DEGsig[DEGsig$ADJ == adj_val & DEGsig$PV == pv_val, c('Name', 'Up', 'Down')]
     if (nrow(pd) == 0) next  # 如果这一组没有数据，就跳过
     rownames(pd) = sub(' .*', '', pd$Name)
-    pd = t(pd[rev(seq(nrow(pd))),-1])
+    pd = t(pd[rev(seq(nrow(pd))), -1])
     pd[2, ] = -pd[2, ]  # Down 设为负数方便绘图显示
     # 创建热图
+    lim = max(abs(min(pd)), max(pd))
     p = Heatmap(pd,
                 cluster_rows = FALSE,
                 cluster_columns = FALSE,
                 name = 'DEG.n',
-                col = colorRamp2(c(min(pd), 0, max(pd)), c('blue', 'white', 'red')),
+                col = colorRamp2(c(-lim, 0, lim), c('blue', 'white', 'red')),
                 cell_fun = function(j, i, x, y, w, h, col) grid.text(abs(pd[i, j]), x, y) )
     # 构建文件名
-    fname = paste0("DEG.adj", tolower(adj_val), ".p", format(pv_val, nsmall = 2), ".png")
+    fname = paste0('DEG.adj', tolower(adj_val), '.p', format(pv_val, nsmall = 2), '.png')
     fpath = file.path(pref, fname)
-    message("Saving heatmap: ", fpath)
+    message('Saving heatmap: ', fpath)
     # 保存图片
-    png(fpath, width = 8, height = 4.5, units = "in", res = 300)
+    png(fpath, width = 8, height = 4.5, units = 'in', res = 300)
     draw(p, 
-         column_title = paste0("DEG Heatmap (adj=", adj_val, ", p=", pv_val, ")"),
-         column_title_gp = gpar(fontsize = 20, fontface = "bold"))
+         column_title = paste0('DEG Heatmap (adj=', adj_val, ', p=', pv_val, ')'),
+         column_title_gp = gpar(fontsize = 20, fontface = 'bold'))
     dev.off()
   }
 }
